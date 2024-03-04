@@ -1,0 +1,11 @@
+{
+  "name": "myyt-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Anag Naik Gaunekar",
+  "license": "ISC"
+}
