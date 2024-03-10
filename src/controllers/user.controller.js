@@ -1,3 +1,4 @@
+import mongoose, { Mongoose } from "mongoose";
 import { User } from "../models/user.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -254,6 +255,123 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
   return res.status(200).json(200, modifiedUser, "Cover image updated successfully");
 });
 
+const getUserChannelProfile=asyncHandler(async(req,res)=>{
+ const {username}=req.params;
+ if(!username?.trim()) throw new ApiError(400,"username is missing");
+ const user=User.find({username});
+ const channelDetails=await User.aggregate([
+  {
+    $match:{
+      username:username?.toLowerCase()
+    }
+  },
+  {
+    $lookup:{
+      from:"subscriptions",
+      localField:"_id",
+      foreignField:"channel",
+      as:"subscribers"
+    }
+  },{
+    $lookup:{
+      from:"subscriptions",
+      localField:"_id",
+      foreignField:"subscriber",
+      as:"subscribedTo"
+    }
+
+  },
+  {
+    $addFields:{
+      subscribersCount:{
+        $size:"$subscribers"
+      },
+      subscribedToCount:{
+        $size:"$subscribedTo"
+      },
+      isSubscribed:{
+        $cond:{
+          if:{
+            $in:[req?.user._id,"$subscribers.subscriber"],
+            then:true,
+            else:false
+          }
+        }
+      }
+    }
+  },
+  {
+    $project:{
+      fullName:1,
+      username:1,
+      subscribersCount:1,
+      subscribedToCount:1,
+      isSubscribed:1,
+      avatar:1,
+      coverImage:1,
+      email:1
+
+    }
+  }
+ ])
+
+ if(!channel?.length) throw new ApiError(404,"Channel does not exist")
+ return res.status(200).json(new ApiResponse(200,"Channel fetched successfully"))
+})
+
+const getWatchHistory=asyncHandler(async(req,res)=>{
+
+  const user=await User.aggregate([
+      {
+        //https://stackoverflow.com/questions/21076460/how-to-convert-a-string-to-objectid-in-nodejs-mongodb-native-driver
+        $match:{
+          _id: new mongoose.Types.ObjectId(req.user?.id) // mongoose does not work directly here hence need to be converted to mongdb id
+        }
+        // $addFields:{
+        //   newId:{ $toObjectId: req.user?.id }
+        // },
+
+      },{
+        $lookup:{
+          from:'videos',
+          localField:"watchHistory",
+          foreignField:"_id",
+          as:"watchHistoryData",
+          pipeline:[
+            {
+              $lookup:{
+                from:'users',
+                localField:"owner",
+                foreignField:"_id",
+                as:"owner",
+                pipeline:[
+                  {
+                    $project:{
+                      fullName:1,
+                      username:1,
+                      avatar:1
+                    }
+                  },
+
+                ]
+              }
+            },
+              {
+                $addFields:{
+                  owner:{
+                    $first:"$owner" //take frst element from owner
+                  }
+                },
+
+              }
+
+          ]
+        }
+      }
+  ])
+
+  return res.status(200).json(new ApiResponse(200,user[0].watchhistory,"Watch history fetched successfully"))
+})
 export {
   loginUser,
   logoutUser,
@@ -262,5 +380,8 @@ export {
   changeCurrentPassword,
   updateUserAvatar,
   updateAccountDetails,
-  updateUserCoverImage
+  updateUserCoverImage,
+  getUserChannelProfile,
+  getCurrentUser,
+  getWatchHistory,
 };
